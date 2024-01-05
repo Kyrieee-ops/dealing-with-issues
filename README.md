@@ -65,37 +65,33 @@ GitHub上に管理を行い、GitHubのソースコードの変更を検知し�
 ## スケジュール
 - 9:00-12:00 会社ブログへメモを残しつつアウトプット
 - 12:00-13:00 お昼休憩
-- 13:00-18:00 会社ブログへメモを残すつつアウトプット
+- 13:00-18:00 会社ブログへメモを残すつつアウトプット, しばらくエラーにハマり原因を確認
 
 
 ## 発生した課題
-appspec.ymlファイルのhooksで定義しているBeforeInstallとApplicationStopに関する処理順序についてよく理解していなかったが、ロードバランサーなしとロードバランサーありでデプロイ順序などが変わるなどがあることを知った。
-
-```
-version: 0.0
-os: linux
-files:
-  - source: /index.html
-    destination: /var/www/html/
-hooks:
-  BeforeInstall:
-    - location: scripts/install_dependencies
-      timeout: 300
-      runas: root
-    - location: scripts/start_server
-      timeout: 300
-      runas: root
-  ApplicationStop:
-    - location: scripts/stop_server
-      timeout: 300
-      runas: root
-```
-
 CodeDeploy時以下のエラーが発生
 ```
 The overall deployment failed because too many individual instances failed deployment, too few healthy instances are available for deployment, or some instances in your deployment group are experiencing problems.
 ```
+さらにイベントログを確認してみると以下エラー
+```
+CodeDeploy agent was not able to receive the lifecycle event. Check the CodeDeploy agent logs on your host and make sure the agent is running and can connect to the CodeDeploy server.
+```
+
 原因の確認
+CodeDeploy Agentのエラーログを確認
+grepでエラー内容を確認
+grep 'ERROR' /var/log/aws/codedeploy-agent/codedeploy-agent.log
+```
+2024-01-05T02:56:48 ERROR [codedeploy-agent(2678)]: InstanceAgent::Plugins::CodeDeployPlugin::CommandPoller: Error polling for host commands: Seahorse::Client::NetworkingError - unable to connect to `codedeploy-commands.ap-northeast-1.amazonaws.com`; SocketError: getaddrinfo: Name or service not known - /usr/share/ruby/net/http.rb:878:in `initialize' 
+
+2024-01-05T02:56:48 ERROR [codedeploy-agent(2678)]: InstanceAgent::Plugins::CodeDeployPlugin::CommandPoller: Network error: #<Seahorse::Client::NetworkingError: unable to connect to `codedeploy-commands.ap-northeast-1.amazonaws.com`; SocketError: getaddrinfo: Name or service not known>
+
+2024-01-05T05:06:00 ERROR [codedeploy-agent(2678)]: booting child: error during start or run: Errno::ENETUNREACH - Network is unreachable - connect(2) - /usr/share/ruby/net/http.rb:878:in `initialize'
+
+2024-01-05T05:06:00 ERROR [codedeploy-agent(2678)]: booting child: error during start or run: SystemExit - exit - /opt/codedeploy-agent/lib/instance_agent/runner/child.rb:98:in 
+`exit'
+```
 
 
 ## 参考サイト
